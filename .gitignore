@@ -1,52 +1,32 @@
-# =====================
-# Logs
-# =====================
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-pnpm-debug.log*
-lerna-debug.log*
+# Flutter / Dart
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+build/
+.metadata
 
-# =====================
-# Node / Web
-# =====================
-node_modules/
-dist/
-dist-ssr/
-*.local
-
-# =====================
 # Android
-# =====================
+android/.gradle/
+android/local.properties
 *.apk
 *.aab
-/build/
-.gradle/
-local.properties
+
+# iOS / macOS
+ios/Pods/
+ios/Flutter/Generated.xcconfig
+macos/Pods/
+
+# Node / Web
+node_modules/
+dist/
+
+# Windows
+windows/flutter/ephemeral/
+
+# IDE / OS
 .idea/
-*.iml
-captures/
-
-# =====================
-# Windows / Desktop
-# =====================
-bin/
-obj/
-out/
-*.exe
-*.msi
-
-# =====================
-# OS / Editor
-# =====================
+.vscode/
 .DS_Store
 Thumbs.db
-.vscode/*
-!.vscode/extensions.json
-.idea/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
