@@ -103,7 +103,7 @@ export const COMPARISON_DATA = [
 
 export const APP_INFO = {
   version: 'v2.4.1 Stable',
-  size: '15.2 MB',
+  size: '26 MB',
   requirement: 'Android 8.0+'
 };
 

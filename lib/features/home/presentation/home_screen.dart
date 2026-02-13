@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:fastshare/features/history/presentation/providers/history_state_provider.dart';
 import 'package:fastshare/features/history/presentation/widgets/history_list_item.dart';
 import 'package:fastshare/features/home/presentation/widgets/home_action_card.dart';
@@ -92,6 +93,19 @@ class HomeScreen extends ConsumerWidget {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.pushNamed(context, AppRoutes.settings);
+              },
+            ),
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.public, color: Colors.blue),
+              title: const Text('Visit Website'),
+              subtitle: const Text('fastsharev1.netlify.app'),
+              onTap: () {
+                Navigator.pop(context);
+                launchUrl(
+                  Uri.parse('https://fastsharev1.netlify.app/'),
+                  mode: LaunchMode.externalApplication,
+                );
               },
             ),
           ],

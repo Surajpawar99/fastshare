@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fastshare/features/transfer/domain/entities/transfer_task.dart';
@@ -42,6 +43,14 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
         });
       }
     });
+  }
+
+  /// Restart discovery if not finding anything
+  void _restartDiscovery() {
+    setState(() {
+      _discoveredDevices = [];
+    });
+    _startDiscovery();
   }
 
   @override
@@ -128,12 +137,30 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_discoveredDevices.isNotEmpty) ...[
-          Text(
-            "Nearby Devices Found",
-            style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary),
-          ),
-          const SizedBox(height: 12),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              _discoveredDevices.isEmpty ? "Searching for nearby devices..." : "Nearby Devices Found",
+              style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary),
+            ),
+            if (_discoveredDevices.isEmpty)
+              const SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                onPressed: _restartDiscovery,
+                constraints: const BoxConstraints(),
+                padding: EdgeInsets.zero,
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (_discoveredDevices.isNotEmpty)
           SizedBox(
             height: 100,
             child: ListView.builder(
@@ -177,11 +204,28 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
                 );
               },
             ),
+          )
+        else
+          Container(
+            height: 100,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHighest.withOpacity(0.3),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withOpacity(0.3),
+                style: BorderStyle.solid,
+              ),
+            ),
+            child: const Center(
+              child: Text(
+                "Make sure the sender is on 'Share' screen",
+                style: TextStyle(fontSize: 12, color: Colors.grey),
+              ),
+            ),
           ),
-          const SizedBox(height: 24),
-          const Divider(),
-          const SizedBox(height: 24),
-        ],
+        const SizedBox(height: 24),
+        const Divider(),
+        const SizedBox(height: 24),
         const Text(
           "Choose connection method",
           textAlign: TextAlign.center,

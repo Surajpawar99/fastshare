@@ -19,7 +19,6 @@ class DiscoveryService {
   Future<void> startBroadcasting(String name, int port) async {
     await stopBroadcasting();
 
-    // BonsoirService holds information about the service to broadcast.
     BonsoirService service = BonsoirService(
       name: name,
       type: type,
@@ -27,9 +26,8 @@ class DiscoveryService {
       attributes: {'version': '1.0.0'},
     );
 
-    // And now we can broadcast it !
     _broadcast = BonsoirBroadcast(service: service);
-    await _broadcast!.ready;
+    await _broadcast!.initialize();
     await _broadcast!.start();
   }
 
@@ -48,17 +46,16 @@ class DiscoveryService {
     _discoveredServicesController.add([]);
 
     _discovery = BonsoirDiscovery(type: type);
-    await _discovery!.ready;
+    await _discovery!.initialize();
 
     _discovery!.eventStream!.listen((event) {
-      if (event.type == BonsoirDiscoveryEventType.discoveryServiceFound ||
-          event.type == BonsoirDiscoveryEventType.discoveryServiceResolved) {
+      if (event is BonsoirDiscoveryServiceFoundEvent ||
+          event is BonsoirDiscoveryServiceResolvedEvent) {
         if (event.service != null) {
           _services[event.service!.name] = event.service!;
           _discoveredServicesController.add(_services.values.toList());
         }
-      } else if (event.type ==
-          BonsoirDiscoveryEventType.discoveryServiceLost) {
+      } else if (event is BonsoirDiscoveryServiceLostEvent) {
         if (event.service != null) {
           _services.remove(event.service!.name);
           _discoveredServicesController.add(_services.values.toList());
