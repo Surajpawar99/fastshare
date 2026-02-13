@@ -5,6 +5,8 @@ import 'package:fastshare/features/transfer/presentation/controllers/transfer_co
 import 'package:fastshare/features/transfer/presentation/screens/qr_scan_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:fastshare/core/services/discovery_service.dart';
+import 'package:bonsoir/bonsoir.dart';
 
 /// ReceiveScreen: ConsumerStatefulWidget for file receiving with proper Riverpod binding
 ///
@@ -21,8 +23,31 @@ class ReceiveScreen extends ConsumerStatefulWidget {
 }
 
 class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
+  final DiscoveryService _discoveryService = DiscoveryService();
+  List<BonsoirService> _discoveredDevices = [];
+  StreamSubscription? _discoverySubscription;
+
+  @override
+  void initState() {
+    super.initState();
+    _startDiscovery();
+  }
+
+  void _startDiscovery() {
+    _discoveryService.startDiscovery();
+    _discoverySubscription = _discoveryService.discoveredServices.listen((devices) {
+      if (mounted) {
+        setState(() {
+          _discoveredDevices = devices;
+        });
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _discoverySubscription?.cancel();
+    _discoveryService.dispose();
     super.dispose();
   }
 
@@ -103,6 +128,60 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (_discoveredDevices.isNotEmpty) ...[
+          Text(
+            "Nearby Devices Found",
+            style: theme.textTheme.titleSmall?.copyWith(color: theme.colorScheme.primary),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 100,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _discoveredDevices.length,
+              itemBuilder: (context, index) {
+                final device = _discoveredDevices[index];
+                return Padding(
+                  padding: const EdgeInsets.only(right: 12.0),
+                  child: InkWell(
+                    onTap: () {
+                      final host = device.toJson()['host'] ?? device.name;
+                      final port = device.port;
+                      handleIncomingLink('http://$host:$port/');
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 120,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primaryContainer.withOpacity(0.2),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(color: theme.colorScheme.primary.withOpacity(0.3)),
+                      ),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.devices, color: theme.colorScheme.primary),
+                          const SizedBox(height: 8),
+                          Text(
+                            device.name,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            textAlign: TextAlign.center,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 24),
+          const Divider(),
+          const SizedBox(height: 24),
+        ],
         const Text(
           "Choose connection method",
           textAlign: TextAlign.center,

@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 // Imports
+import 'package:fastshare/core/services/discovery_service.dart';
 import 'package:fastshare/features/transfer/data/services/local_http_server.dart';
 import 'package:fastshare/features/transfer/domain/entities/transfer_task.dart';
 import 'package:fastshare/features/transfer/presentation/controllers/transfer_controller.dart';
@@ -28,6 +29,7 @@ class ShareSessionScreen extends ConsumerStatefulWidget {
 
 class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   FileTransferServer? _server;
+  final DiscoveryService _discoveryService = DiscoveryService();
   String? _serverIp;
   int? _serverPort;
   String? _sharePassword; // Optional password for protection
@@ -60,6 +62,7 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   @override
   void dispose() {
     _server?.stopServer();
+    _discoveryService.dispose();
     _testTimer?.cancel(); // Cancel test timer
     _passwordController.dispose(); // Clean up password field
     _isInitializing = false; // Reset guard
@@ -173,6 +176,11 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
             _serverIp = info.ipAddress;
             _serverPort = info.port;
           });
+          // Start mDNS broadcasting
+          _discoveryService.startBroadcasting(
+            "FastShare - ${info.ipAddress.split('.').last}",
+            info.port,
+          );
         }
       } else {
         controller.markFailed("Could not bind server port");
