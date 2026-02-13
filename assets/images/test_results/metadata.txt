@@ -1,0 +1,2 @@
+IMAGE_DATA_1: input_file_0.png
+IMAGE_DATA_2: input_file_1.png
