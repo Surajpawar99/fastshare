@@ -4,6 +4,7 @@ import 'package:fastshare/features/transfer/domain/entities/transfer_task.dart';
 import 'package:fastshare/features/transfer/presentation/controllers/transfer_controller.dart';
 import 'package:fastshare/features/transfer/presentation/screens/qr_scan_screen.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// ReceiveScreen: ConsumerStatefulWidget for file receiving with proper Riverpod binding
 ///
@@ -114,6 +115,33 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
           subtitle: "Scan sender's screen",
           color: theme.colorScheme.primary,
           onTap: () async {
+            // Request camera permission before opening scanner
+            final status = await Permission.camera.request();
+            if (status.isDenied || status.isPermanentlyDenied) {
+              // Show friendly message and offer to open settings
+              showDialog(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Camera Permission'),
+                  content: const Text(
+                      'Camera access is required to scan QR codes. Please grant permission in Settings.'),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(ctx),
+                        child: const Text('Cancel')),
+                    FilledButton(
+                      onPressed: () {
+                        openAppSettings();
+                        Navigator.pop(ctx);
+                      },
+                      child: const Text('Open Settings'),
+                    ),
+                  ],
+                ),
+              );
+              return;
+            }
+
             // Navigate to Scan Screen
             final scannedValue = await Navigator.push(
               context,

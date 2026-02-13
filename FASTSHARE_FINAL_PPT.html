@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastShare - Technical Presentation</title>
+    <style>
+        :root {
+            --bg: #023047;
+            --accent: #006D77;
+            --secondary: #83C5BE;
+            --text: #EDF6F9;
+            --card-bg: rgba(255, 255, 255, 0.05);
+        }
+        body {
+            margin: 0;
+            font-family: 'Inter', 'Segoe UI', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            overflow: hidden;
+        }
+        .slide {
+            height: 100vh;
+            width: 100vw;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 50px;
+            box-sizing: border-box;
+            text-align: center;
+            position: relative;
+        }
+        .slide.active { display: flex; animation: slideIn 0.4s ease-out; }
+        @keyframes slideIn { from { transform: translateX(100%); } to { transform: translateX(0); } }
+        
+        h1 { font-size: 4rem; color: var(--secondary); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 5px; }
+        h2 { font-size: 2.5rem; color: var(--text); margin-top: 0; border-bottom: 2px solid var(--accent); display: inline-block; padding-bottom: 10px; }
+        h3 { color: var(--secondary); }
+        p { font-size: 1.3rem; line-height: 1.6; max-width: 1000px; }
+        
+        .content-box {
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 15px;
+            border-left: 5px solid var(--accent);
+            text-align: left;
+            width: 80%;
+            margin: 20px 0;
+        }
+        
+        ul { font-size: 1.2rem; line-height: 2; list-style-type: '⚡ '; }
+        
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; width: 90%; text-align: left; }
+        
+        .comparison-table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 1.1rem; }
+        .comparison-table th, .comparison-table td { padding: 15px; border: 1px solid var(--accent); text-align: center; }
+        .comparison-table th { background: var(--accent); color: white; }
+        .highlight-row { background: rgba(0, 109, 119, 0.3); }
+
+        .image-container { display: flex; gap: 10px; margin-top: 20px; }
+        .image-container img { width: 280px; border-radius: 10px; border: 2px solid var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+
+        .controls { position: fixed; bottom: 40px; right: 40px; display: flex; gap: 15px; }
+        .btn { padding: 15px 30px; background: var(--accent); color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+        .btn:hover { background: #00818a; }
+        
+        .progress-container { position: fixed; top: 0; width: 100%; height: 5px; background: #111; }
+        .progress-bar { height: 100%; background: var(--secondary); width: 0%; transition: width 0.3s; }
+        
+        .footer-info { position: fixed; bottom: 20px; left: 40px; font-size: 0.9rem; color: var(--secondary); }
+        .tech-pill { display: inline-block; padding: 5px 15px; background: var(--accent); border-radius: 20px; margin: 5px; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <div class="progress-container"><div class="progress-bar" id="progressBar"></div></div>
+    <div class="footer-info">Shri Shivaji Polytechnic Institute, Parbhani | Final Year Project: FastShare</div>
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide active">
+        <h1 style="font-size: 6rem;">⚡ FastShare</h1>
+        <h2>Next-Gen Offline File Transfer Protocol</h2>
+        <p style="color: var(--secondary);">High-Speed Offline File Transfer System using Local HTTP Server Architecture</p>
+        <div style="margin-top: 50px;">
+            <p><b>Team Members:</b></p>
+            <p>Suraj Pawar | Swapnil Nagmode | Ganesh Jogdand</p>
+        </div>
+    </div>
+
+    <!-- SLIDE 2: Problem Statement -->
+    <div class="slide">
+        <h2>Why We Built This?</h2>
+        <div class="content-box">
+            <ul>
+                <li><b>Bluetooth Inefficiency:</b> Extremely slow speeds (< 1MB/s) for modern large files.</li>
+                <li><b>Internet Dependency:</b> Cloud sharing (Drive/WhatsApp) fails in remote or restricted zones.</li>
+                <li><b>The App Barrier:</b> Existing apps like Xender/ShareMe require <b>both</b> parties to have the app.</li>
+                <li><b>Bloatware:</b> Most sharing apps are cluttered with intrusive ads and data tracking.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- SLIDE 3: The Solution -->
+    <div class="slide">
+        <h2>The FastShare Solution</h2>
+        <div class="grid-2">
+            <div class="content-box">
+                <h3>Core Concept</h3>
+                <p>FastShare transforms the sender's device into a <b>Localized Web Server</b>.</p>
+                <p>The receiver simply connects to the sender's network and uses a <b>Web Browser</b> to download files instantly.</p>
+            </div>
+            <div class="content-box">
+                <h3>Unique Value Proposition</h3>
+                <ul>
+                    <li>No app installation needed for receiver.</li>
+                    <li>Purely offline - No data consumption.</li>
+                    <li>Universal compatibility (Android, iOS, PC).</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 4: Key Features -->
+    <div class="slide">
+        <h2>Features That Matter</h2>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; width: 95%;">
+            <div class="content-box" style="margin: 0;"><h3>⚡ Ultra-Fast</h3><p>Speeds up to 100 MB/s+ using Local Wi-Fi / Hotspot.</p></div>
+            <div class="content-box" style="margin: 0;"><h3>📱 No App Needed</h3><p>Receiver doesn't need the app. Works via Browser.</p></div>
+            <div class="content-box" style="margin: 0;"><h3>🔒 Privacy First</h3><p>100% Offline. No cloud. No data tracking.</p></div>
+            <div class="content-box" style="margin: 0;"><h3>📂 Large Files</h3><p>Optimized for 100GB+ files with Zip-Streaming.</p></div>
+            <div class="content-box" style="margin: 0;"><h3>🕘 Smart History</h3><p>Persistent transfer logs with Hive NoSQL DB.</p></div>
+            <div class="content-box" style="margin: 0;"><h3>🎯 Lightweight</h3><p>Small 15MB APK. Fast launch. Smooth UI.</p></div>
+        </div>
+    </div>
+
+    <!-- SLIDE 5: System Architecture -->
+    <div class="slide">
+        <h2>Technical Architecture</h2>
+        <div class="content-box">
+            <h3>The Client-Server Model</h3>
+            <p>1. <b>Sender Side:</b> Acts as the <b>Host</b>. Spawns a <code>HttpServer</code> instance on a dynamic port (e.g., 54321).</p>
+            <p>2. <b>Receiver Side:</b> Acts as the <b>Client</b>. Connects via standard HTTP/1.1 protocol over TCP/IP sockets.</p>
+            <p>3. <b>Discovery:</b> Uses QR Code to bridge the IP-Port handshake between devices.</p>
+        </div>
+    </div>
+
+    <!-- SLIDE 6: Tech Stack -->
+    <div class="slide">
+        <h2>The Technology Stack</h2>
+        <div class="grid-2">
+            <div class="content-box">
+                <h3>Frontend</h3>
+                <div>
+                    <span class="tech-pill">Flutter</span>
+                    <span class="tech-pill">Material 3</span>
+                    <span class="tech-pill">Riverpod</span>
+                </div>
+                <p>Modern, responsive UI with state-of-the-art state management.</p>
+            </div>
+            <div class="content-box">
+                <h3>Backend & Storage</h3>
+                <div>
+                    <span class="tech-pill">Dart (dart:io)</span>
+                    <span class="tech-pill">Hive (NoSQL)</span>
+                    <span class="tech-pill">Shelf (Server)</span>
+                </div>
+                <p>High-performance I/O for streaming and Hive for blazing fast history persistence.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 7: Engineering Deep Dive - Streaming -->
+    <div class="slide">
+        <h2>Engineering Challenge: RAM Optimization</h2>
+        <div class="content-box">
+            <h3 style="color: #ff4757;">Problem: The 2GB+ Crash</h3>
+            <p>Standard apps try to load files into RAM before sending, causing crashes on large transfers.</p>
+            <h3 style="color: #2ed573;">Solution: Chunked Binary Streaming</h3>
+            <p>FastShare reads files in <b>64KB chunks</b> and pipes them directly to the network socket. RAM usage remains constant (< 100MB) even for 50GB files.</p>
+        </div>
+    </div>
+
+    <!-- SLIDE 8: Feature Spotlight - Auto-Zip -->
+    <div class="slide">
+        <h2>Smart Multi-File Handling</h2>
+        <div class="content-box">
+            <h3>On-the-Fly Zipping</h3>
+            <p>When a user selects multiple files (e.g., 100 photos):</p>
+            <ul>
+                <li>The server creates a <b>Virtual Zip Stream</b>.</li>
+                <li>The file is zipped <b>while it is being sent</b>.</li>
+                <li>The receiver gets one <code>FastShare_Bundle.zip</code> instead of accepting 100 individual prompts.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- SLIDE 9: Security -->
+    <div class="slide">
+        <h2>Security & Authentication</h2>
+        <div class="grid-2">
+            <div class="content-box">
+                <h3>Session Isolation</h3>
+                <p>Every transfer session generates a unique 32-byte <b>Secure Token</b>. Even if someone knows the IP, they cannot access files without the token.</p>
+            </div>
+            <div class="content-box">
+                <h3>Industrial Protection</h3>
+                <ul>
+                    <li><b>SHA-256:</b> Passwords are hashed with salt.</li>
+                    <li><b>Local Tunnel:</b> Data never touches any external server or cloud.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 10: Comparative Analysis -->
+    <div class="slide">
+        <h2>FastShare vs. Industry Standards</h2>
+        <table class="comparison-table">
+            <tr><th>Feature</th><th>⚡ FastShare</th><th>ShareMe</th><th>Bluetooth</th></tr>
+            <tr class="highlight-row"><td>Receiver App Needed?</td><td>❌ NO</td><td>✅ YES</td><td>❌ NO</td></tr>
+            <tr><td>Speed (5GB File)</td><td>🚀 100 MB/s+</td><td>🐢 20 Mins</td><td>💀 5+ Hours</td></tr>
+            <tr><td>Internet Needed?</td><td>❌ NO</td><td>❌ NO</td><td>❌ NO</td></tr>
+            <tr><td>Cross-Platform</td><td>✅ Seamless</td><td>⚠️ Limited</td><td>⚠️ Limited</td></tr>
+            <tr><td>Ads / Bloat</td><td>🚫 ZERO</td><td>⚠️ High</td><td>🚫 None</td></tr>
+        </table>
+    </div>
+
+    <!-- SLIDE 11: User Flow -->
+    <div class="slide">
+        <h2>Simplified User Workflow</h2>
+        <div style="display: flex; justify-content: center; align-items: center; gap: 20px;">
+            <div class="content-box" style="width: 200px; text-align: center;">1. Select Files</div>
+            <div style="font-size: 2rem;">➜</div>
+            <div class="content-box" style="width: 200px; text-align: center;">2. Start Server</div>
+            <div style="font-size: 2rem;">➜</div>
+            <div class="content-box" style="width: 200px; text-align: center;">3. Scan QR</div>
+            <div style="font-size: 2rem;">➜</div>
+            <div class="content-box" style="width: 200px; text-align: center;">4. Download</div>
+        </div>
+    </div>
+
+    <!-- SLIDE 12: Challenges Faced -->
+    <div class="slide">
+        <h2>Engineering Hurdles</h2>
+        <div class="content-box">
+            <ul>
+                <li><b>Android 13+ Permissions:</b> Implementing <code>NEARBY_WIFI_DEVICES</code> for offline discovery.</li>
+                <li><b>Scoped Storage:</b> Navigating MediaStore APIs for Android 10+ file access.</li>
+                <li><b>Port Conflicts:</b> Dynamic allocation to ensure the server starts even if common ports are busy.</li>
+                <li><b>Persistence:</b> Ensuring history remains consistent using Hive adapters.</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- SLIDE 13: Future Scope -->
+    <div class="slide">
+        <h2>Next-Gen Enhancements Added</h2>
+        <div class="grid-2">
+            <div class="content-box">
+                <h3>Virtual Multi-File Zipping</h3>
+                <p>Receivers can now download hundreds of files as a single optimized <b>ZIP stream</b>, reducing handshake overhead by 90%.</p>
+            </div>
+            <div class="content-box">
+                <h3>UI/UX Polish</h3>
+                <p>Implemented <b>Lottie-style physics animations</b> and pulsing QR states to provide immediate visual feedback during connections.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 14: Future Roadmap -->
+    <div class="slide">
+        <h2>The Roadmap</h2>
+        <div class="grid-2">
+            <div class="content-box">
+                <h3>Short Term</h3>
+                <ul>
+                    <li>WiFi Direct Auto-pairing.</li>
+                    <li>Pause/Resume via Range Headers.</li>
+                </ul>
+            </div>
+            <div class="content-box">
+                <h3>Long Term</h3>
+                <ul>
+                    <li>AES-256 End-to-End Encryption.</li>
+                    <li>Desktop-to-Desktop P2P sharing.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 15: Live Screenshots -->
+    <div class="slide">
+        <h2>Application Interface</h2>
+        <p>Real-time look at the FastShare production UI.</p>
+        <div class="image-container">
+            <img src="C:/Users/suraj/Downloads/images/WhatsApp Image 2026-02-12 at 8.46.23 PM.jpeg">
+            <img src="C:/Users/suraj/Downloads/images/WhatsApp Image 2026-02-12 at 8.46.24 PM.jpeg">
+            <img src="C:/Users/suraj/Downloads/images/WhatsApp Image 2026-02-12 at 8.46.25 PM.jpeg">
+        </div>
+    </div>
+
+    <!-- SLIDE 16: Conclusion -->
+    <div class="slide">
+        <h1>Conclusion</h1>
+        <p>FastShare is a robust, production-ready protocol that solves the universal problem of multi-platform file sharing without the internet or app barriers.</p>
+        <h2 style="margin-top: 50px;">Thank You!</h2>
+        <div style="margin-top: 30px; border-top: 1px solid var(--accent); padding-top: 20px;">
+            <p><b>Team:</b> Suraj Pawar, Swapnil Nagmode, Ganesh Jogdand</p>
+            <p><b>Institution:</b> Shri Shivaji Polytechnic Institute, Parbhani</p>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="prevSlide()">PREV</button>
+        <button class="btn" onclick="nextSlide()">NEXT</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progressBar = document.getElementById('progressBar');
+
+        function updateSlide() {
+            slides.forEach((s, i) => s.classList.toggle('active', i === currentSlide));
+            progressBar.style.width = ((currentSlide + 1) / slides.length * 100) + '%';
+        }
+
+        function nextSlide() { if (currentSlide < slides.length - 1) { currentSlide++; updateSlide(); } }
+        function prevSlide() { if (currentSlide > 0) { currentSlide--; updateSlide(); } }
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+    </script>
+</body>
+</html>

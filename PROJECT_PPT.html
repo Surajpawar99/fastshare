@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastShare Presentation</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; background: #f0f2f5; overflow: hidden; }
+        .slide { height: 100vh; width: 100vw; display: none; flex-direction: column; align-items: center; justify-content: center; padding: 40px; box-sizing: border-box; text-align: center; background: white; transition: opacity 0.5s ease-in-out; }
+        .slide.active { display: flex; }
+        .slide h1 { color: #008080; font-size: 3rem; margin-bottom: 20px; }
+        .slide h2 { color: #333; font-size: 2rem; margin-bottom: 15px; }
+        .slide p { font-size: 1.5rem; color: #666; max-width: 800px; line-height: 1.6; }
+        .slide ul { text-align: left; font-size: 1.3rem; color: #444; }
+        .controls { position: fixed; bottom: 20px; right: 20px; display: flex; gap: 10px; }
+        .btn { padding: 10px 20px; background: #008080; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 1rem; }
+        .btn:hover { background: #006666; }
+        .progress { position: fixed; top: 0; left: 0; height: 5px; background: #008080; transition: width 0.3s; }
+        .footer { position: fixed; bottom: 10px; left: 20px; color: #999; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+    <div class="progress" id="progress"></div>
+    <div class="footer">⚡ FastShare | Developed with Jarvis</div>
+
+    <!-- Slide 1 -->
+    <div class="slide active">
+        <h1>⚡ FastShare</h1>
+        <h2>The Future of Offline File Sharing</h2>
+        <p>A sophisticated, cross-platform solution for high-speed local data transfer.</p>
+    </div>
+
+    <!-- Slide 2 -->
+    <div class="slide">
+        <h1>Project Overview</h1>
+        <p>FastShare is built to bridge the gap between platforms when it comes to sharing large files without relying on slow cloud services or expensive data.</p>
+        <ul>
+            <li>Built with <b>Flutter</b></li>
+            <li>Production-Ready</li>
+            <li>Zero-latency architecture</li>
+        </ul>
+    </div>
+
+    <!-- Slide 3 -->
+    <div class="slide">
+        <h1>Core Concept</h1>
+        <p><b>Local Network First.</b></p>
+        <p>By leveraging LAN and WiFi technologies, FastShare creates a direct tunnel between devices, ensuring maximum privacy and speed.</p>
+    </div>
+
+    <!-- Slide 4 -->
+    <div class="slide">
+        <h1>Key Feature: Offline Sharing</h1>
+        <p>No internet? No problem.</p>
+        <p>FastShare works entirely offline, making it perfect for remote areas, planes, or high-security environments.</p>
+    </div>
+
+    <!-- Slide 5 -->
+    <div class="slide">
+        <h1>Key Feature: QR Pairing</h1>
+        <p>Connecting should be effortless.</p>
+        <p>Just scan a QR code to securely pair devices. No more searching for IP addresses or pairing codes.</p>
+    </div>
+
+    <!-- Slide 6 -->
+    <div class="slide">
+        <h1>True Cross-Platform</h1>
+        <p>Seamless sharing across all your devices.</p>
+        <ul>
+            <li>Android (Material 3)</li>
+            <li>Windows</li>
+            <li>macOS & Linux</li>
+        </ul>
+    </div>
+
+    <!-- Slide 7 -->
+    <div class="slide">
+        <h1>Security: Password Protection</h1>
+        <p>Protect your shared files with industrial-grade hashing.</p>
+        <p>Users can set optional passwords for shares, preventing unauthorized access even on open networks.</p>
+    </div>
+
+    <!-- Slide 8 -->
+    <div class="slide">
+        <h1>Security: Secure Tokens</h1>
+        <p>Token-based authentication ensures that once access is granted, the session remains secure and isolated.</p>
+    </div>
+
+    <!-- Slide 9 -->
+    <div class="slide">
+        <h1>Performance: 50GB+ Support</h1>
+        <p>Optimized for the "Big Data" era.</p>
+        <p>Stream-based file handling allows for files larger than 50GB without crashing or freezing the UI.</p>
+    </div>
+
+    <!-- Slide 10 -->
+    <div class="slide">
+        <h1>Material 3 UI/UX</h1>
+        <p>A modern, clean aesthetic.</p>
+        <p>Following the latest design standards with Teal accents and dynamic theme support (Dark/Light mode).</p>
+    </div>
+
+    <!-- Slide 11 -->
+    <div class="slide">
+        <h1>The Technical Stack</h1>
+        <ul>
+            <li><b>Flutter:</b> Single codebase, multiple platforms.</li>
+            <li><b>Riverpod:</b> Modern state management.</li>
+            <li><b>Local HTTP Server:</b> High-performance file serving.</li>
+        </ul>
+    </div>
+
+    <!-- Slide 12 -->
+    <div class="slide">
+        <h1>Persistence with Hive</h1>
+        <p>Blazing fast NoSQL database.</p>
+        <p>Used for transfer history, ensuring your records survive app restarts with zero overhead.</p>
+    </div>
+
+    <!-- Slide 13 -->
+    <div class="slide">
+        <h1>Production Quality</h1>
+        <p>Rigorous fixes implemented:</p>
+        <ul>
+            <li>Deduplication of history</li>
+            <li>Permission compliance (Android 14)</li>
+            <li>Splash screen optimization</li>
+            <li>Memory-safe streaming</li>
+        </ul>
+    </div>
+
+    <!-- Slide 14 -->
+    <div class="slide">
+        <h1>System Architecture</h1>
+        <p><b>Sender:</b> Hosts a temporary HTTP Server.</p>
+        <p><b>Receiver:</b> Connects via browser or app client.</p>
+        <p><b>Protocol:</b> Secure local streaming.</p>
+    </div>
+
+    <!-- Slide 15 -->
+    <div class="slide">
+        <h1>Future Roadmap</h1>
+        <ul>
+            <li>WiFi Direct / Hotspot Auto-pairing</li>
+            <li>Encrypted P2P Channels</li>
+            <li>Cloud Backup Integration (Optional)</li>
+            <li>Community Plugins Support</li>
+        </ul>
+    </div>
+
+    <!-- Slide 16 -->
+    <div class="slide">
+        <h1>Conclusion</h1>
+        <p>FastShare is ready to revolutionize how you move data.</p>
+        <h2>Thank You, Sir.</h2>
+        <p>Questions?</p>
+    </div>
+
+    <div class="controls">
+        <button class="btn" onclick="prevSlide()">Previous</button>
+        <button class="btn" onclick="nextSlide()">Next</button>
+    </div>
+
+    <script>
+        let currentSlide = 0;
+        const slides = document.querySelectorAll('.slide');
+        const progress = document.getElementById('progress');
+
+        function updateSlide() {
+            slides.forEach((s, i) => {
+                s.classList.toggle('active', i === currentSlide);
+            });
+            progress.style.width = ((currentSlide + 1) / slides.length * 100) + '%';
+        }
+
+        function nextSlide() {
+            if (currentSlide < slides.length - 1) {
+                currentSlide++;
+                updateSlide();
+            }
+        }
+
+        function prevSlide() {
+            if (currentSlide > 0) {
+                currentSlide--;
+                updateSlide();
+            }
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === ' ') nextSlide();
+            if (e.key === 'ArrowLeft') prevSlide();
+        });
+    </script>
+</body>
+</html>

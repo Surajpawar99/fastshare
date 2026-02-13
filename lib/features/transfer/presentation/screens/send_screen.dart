@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:fastshare/core/zip_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fastshare/features/transfer/presentation/screens/share_session_screen.dart';
 
@@ -207,14 +208,115 @@ class _SendScreenState extends State<SendScreen> {
   void _goToShareSession() {
     if (_selectedFiles.isEmpty) return;
 
-    // Pass PlatformFile list (stream-capable) to ShareSessionScreen.
-    // Stream is only opened when needed during transfer.
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ShareSessionScreen(files: _selectedFiles),
-      ),
+    // Determine if ZIP flow is required:
+    // - multiple selections OR any selected path is a directory
+    bool requiresZip = _selectedFiles.length > 1;
+    if (!requiresZip) {
+      final first = _selectedFiles.first;
+      if (first.path != null) {
+        try {
+          if (Directory(first.path!).existsSync()) requiresZip = true;
+        } catch (_) {}
+      }
+    }
+
+    if (!requiresZip) {
+      // Single file normal flow
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShareSessionScreen(files: _selectedFiles),
+        ),
+      );
+      return;
+    }
+
+    // ZIP flow
+    _startZipAndNavigate();
+  }
+
+  Future<void> _startZipAndNavigate() async {
+    if (_isPicking) return; // reuse lock to prevent re-entrancy
+    _isPicking = true;
+    final zipService = ZipService();
+    String? zipPath;
+    bool cancelled = false;
+
+    // Show a simple modal while ZIP is prepared. Cancellation kills the worker.
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Preparing ZIP...'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              SizedBox(height: 12),
+              CircularProgressIndicator(),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () async {
+                cancelled = true;
+                await zipService.cancel();
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
     );
+
+    try {
+      zipPath = await zipService.createZip(_selectedFiles);
+
+      if (cancelled) {
+        await zipService.cleanup();
+        return;
+      }
+
+      final f = File(zipPath);
+      final zipSize = await f.length();
+
+      Navigator.of(context).pop(); // close preparing dialog
+
+      final platformZip = PlatformFile(
+        name: f.uri.pathSegments.last,
+        path: zipPath,
+        size: zipSize,
+      );
+
+      // Navigate to share screen, pass temp files (ZIP + any copied streams) for cleanup after session
+      final tempFiles = <String>[zipPath];
+      try {
+        tempFiles.addAll(zipService.tempFiles);
+      } catch (_) {}
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ShareSessionScreen(
+            files: [platformZip],
+            tempFilesToDelete: tempFiles,
+          ),
+        ),
+      );
+    } catch (e) {
+      try {
+        Navigator.of(context).pop();
+      } catch (_) {}
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ZIP error: $e')),
+        );
+      }
+      await zipService.cleanup();
+    } finally {
+      _isPicking = false;
+    }
   }
 
   // --- UI ---

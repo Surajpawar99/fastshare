@@ -18,9 +18,11 @@ ios/Pods/
 ios/Flutter/Generated.xcconfig
 macos/Pods/
 
-# Node / Web
+# Web / Node
 node_modules/
 dist/
+.env*
+*.local
 
 # Windows
 windows/flutter/ephemeral/

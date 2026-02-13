@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 // Imports
 import 'package:fastshare/features/transfer/data/services/local_http_server.dart';
@@ -13,8 +14,13 @@ import 'package:fastshare/features/transfer/presentation/controllers/transfer_co
 
 class ShareSessionScreen extends ConsumerStatefulWidget {
   final List<PlatformFile> files;
+  final List<String>? tempFilesToDelete;
 
-  const ShareSessionScreen({super.key, required this.files});
+  const ShareSessionScreen({
+    super.key,
+    required this.files,
+    this.tempFilesToDelete,
+  });
 
   @override
   ConsumerState<ShareSessionScreen> createState() => _ShareSessionScreenState();
@@ -24,6 +30,8 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   FileTransferServer? _server;
   String? _serverIp;
   int? _serverPort;
+  String? _sharePassword; // Optional password for protection
+  final TextEditingController _passwordController = TextEditingController();
 
   // Test mode variables
   Timer? _testTimer;
@@ -53,7 +61,19 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   void dispose() {
     _server?.stopServer();
     _testTimer?.cancel(); // Cancel test timer
+    _passwordController.dispose(); // Clean up password field
     _isInitializing = false; // Reset guard
+    // Clean up any temporary files created for this session (e.g., ZIPs)
+    try {
+      if (widget.tempFilesToDelete != null) {
+        for (final p in widget.tempFilesToDelete!) {
+          try {
+            final f = File(p);
+            if (f.existsSync()) f.deleteSync();
+          } catch (_) {}
+        }
+      }
+    } catch (_) {}
     super.dispose();
   }
 
@@ -105,12 +125,15 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
         controller.updateProgress(bytesTransferred: bytes, speedMbps: speed);
       };
 
-      // 5. Start Server
-      // Convert PlatformFile -> SharedFile (server-friendly wrapper)
-      final shared =
-          widget.files.map((pf) => SharedFile.fromPlatformFile(pf)).toList();
+      // 5. Start Server with optional password protection
+      // Convert PlatformFile -> SharedFile asynchronously to avoid sync IO on UI thread
+      final shared = await Future.wait(
+          widget.files.map((pf) => SharedFile.fromPlatformFileAsync(pf)));
 
-      final info = await _server!.startServer(shared);
+      final info = await _server!.startServer(
+        shared,
+        password: _sharePassword, // Pass optional password
+      );
 
       // Wire download-complete callback so sender can mark completion and persist history
       _server!.onDownloadComplete = (fileIndex, viaBrowser) {
@@ -127,6 +150,21 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
         ref
             .read(transferControllerProvider.notifier)
             .markCompleted(isSent: true);
+        // Clean up any temporary files (ZIPs or copied streams) after successful transfer
+        try {
+          if (widget.tempFilesToDelete != null) {
+            for (final p in widget.tempFilesToDelete!) {
+              try {
+                final f = File(p);
+                if (f.existsSync()) f.deleteSync();
+              } catch (_) {}
+            }
+          }
+        } catch (_) {}
+        // Stop server after successful send
+        try {
+          _server?.stopServer();
+        } catch (_) {}
       };
 
       if (info != null) {
@@ -250,6 +288,46 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
           children: [
             // --- QR CODE ---
             _buildQRSection(theme, isWaiting, task),
+
+            const SizedBox(height: 24),
+
+            // --- PASSWORD INPUT (Only when waiting to share) ---
+            if (isWaiting && !isError && _sharePassword == null)
+              _buildPasswordInput(theme),
+
+            if (_sharePassword != null && isWaiting && !isError)
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: Colors.green.withOpacity(0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.lock, color: Colors.green),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        "Password protected: $_sharePassword",
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.edit),
+                      onPressed: () {
+                        setState(() => _sharePassword = null);
+                      },
+                    ),
+                  ],
+                ),
+              ),
 
             const SizedBox(height: 32),
 
@@ -381,9 +459,12 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
                         Icons.upload_file_rounded,
                         size: 100,
                         color: theme.colorScheme.primary,
-                      ),
+                      ).animate(onPlay: (controller) => controller.repeat())
+                       .scale(duration: 1.seconds, curve: Curves.easeInOut)
+                       .then()
+                       .scale(duration: 1.seconds, curve: Curves.easeInOut),
           ),
-        ),
+        ).animate().fadeIn(duration: 600.ms).slideY(begin: 0.2, end: 0),
         const SizedBox(height: 24),
         Text(
           isWaiting ? "Scan to Connect" : "Sending ${task.fileName}...",
@@ -394,7 +475,8 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
                 ? theme.colorScheme.primary
                 : theme.colorScheme.onSurface,
           ),
-        ),
+        ).animate(onPlay: (controller) => controller.repeat(reverse: true))
+         .fadeIn(duration: 1.seconds),
       ],
     );
   }
@@ -539,6 +621,17 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
               Navigator.pop(ctx); // Close dialog
               ref.read(transferControllerProvider.notifier).reset();
               _testTimer?.cancel(); // Cancel test timer
+              // Delete any temporary files created for this session
+              try {
+                if (widget.tempFilesToDelete != null) {
+                  for (final p in widget.tempFilesToDelete!) {
+                    try {
+                      final f = File(p);
+                      if (f.existsSync()) f.deleteSync();
+                    } catch (_) {}
+                  }
+                }
+              } catch (_) {}
               Navigator.pop(context); // Close screen
             },
             child: const Text("Stop"),
@@ -550,5 +643,77 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
 
   String _formatBytes(int bytes) {
     return "${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB";
+  }
+
+  /// Builds a password input widget
+  Widget _buildPasswordInput(ThemeData theme) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withOpacity(0.5),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.lock_outline),
+              const SizedBox(width: 8),
+              Text(
+                "Optional: Add Password",
+                style: theme.textTheme.labelLarge,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _passwordController,
+            obscureText: true,
+            decoration: InputDecoration(
+              hintText: "Leave blank for public access",
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 10,
+              ),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.tonal(
+              onPressed: () {
+                final password = _passwordController.text.trim();
+                if (password.isNotEmpty) {
+                  setState(() => _sharePassword = password);
+                  // Restart server with new password
+                  // This will trigger _initializeSession again
+                  _passwordController.clear();
+                  _server?.stopServer().then((_) {
+                    setState(() {
+                      _server = null;
+                      _serverIp = null;
+                      _serverPort = null;
+                    });
+                    _initializeSession();
+                  });
+                } else {
+                  // Start without password
+                  _initializeSession();
+                }
+              },
+              child: const Text("Continue"),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
