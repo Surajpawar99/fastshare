@@ -4,6 +4,9 @@ import 'package:file_picker/file_picker.dart';
 import 'package:archive/archive.dart';
 import 'auth_manager.dart';
 
+import 'package:mime/mime.dart';
+import 'package:http_parser/http_parser.dart'; // Often needed for parsing Content-Type
+
 // const int _kChunkSize = 512 * 1024; // 512 KB - large chunk for efficient IO
 
 /// Represents the connection details needed by the Receiver
@@ -235,6 +238,75 @@ class FileTransferServer {
   void broadcastClipboard(String text) {
     if (!_clipboardStream.isClosed) {
       _clipboardStream.add(text);
+    }
+  }
+
+  // --- UPLOAD HANDLER ---
+  void _handleUpload(HttpRequest request, HttpResponse response) async {
+    if (request.method != 'POST') {
+      response.statusCode = HttpStatus.methodNotAllowed;
+      await response.close();
+      return;
+    }
+
+    try {
+      final contentType = request.headers.contentType;
+      if (contentType == null || contentType.mimeType != 'multipart/form-data') {
+        response.statusCode = HttpStatus.badRequest;
+        response.write('Invalid content type');
+        await response.close();
+        return;
+      }
+
+      final boundary = contentType.parameters['boundary'];
+      if (boundary == null) {
+        response.statusCode = HttpStatus.badRequest;
+        response.write('Missing boundary');
+        await response.close();
+        return;
+      }
+
+      final transformer = MimeMultipartTransformer(boundary);
+      final bodyStream = request.cast<List<int>>().transform(transformer);
+
+      int fileCount = 0;
+      Directory? downloadDir;
+
+      // Platform specific directory
+      if (Platform.isAndroid) {
+        downloadDir = Directory('/storage/emulated/0/Download/FastShare');
+      } else {
+        downloadDir = Directory.systemTemp; // Fallback
+      }
+      
+      if (!await downloadDir.exists()) {
+        await downloadDir.create(recursive: true);
+      }
+
+      await for (final part in bodyStream) {
+        final contentDisposition = part.headers['content-disposition'];
+        if (contentDisposition != null) {
+          final headerParams = MediaType.parse('multipart/form-data; $contentDisposition').parameters;
+          final filename = headerParams['filename'];
+          
+          if (filename != null && filename.isNotEmpty) {
+             final file = File('${downloadDir.path}/$filename');
+             final sink = file.openWrite();
+             await part.pipe(sink); // Stream directly to file
+             fileCount++;
+          }
+        }
+      }
+
+      response.statusCode = HttpStatus.ok;
+      response.write('Uploaded $fileCount files successfully');
+      await response.close();
+      
+    } catch (e) {
+      print("Upload Error: $e");
+      response.statusCode = HttpStatus.internalServerError;
+      response.write('Upload failed: $e');
+      await response.close();
     }
   }
 
@@ -538,8 +610,116 @@ class FileTransferServer {
             </div>
         </div>
     </div>
+    
+    <!-- Upload to Phone Card -->
+    <div class="card">
+        <div class="header" style="background: #2196F3; padding: 20px;">
+            <div class="logo" style="font-size: 32px;">📤</div>
+            <h1 class="app-name">Send to Phone</h1>
+        </div>
+        <div class="content">
+            <div class="section-title">Select files to upload</div>
+            
+            <div id="dropZone" class="clipboard-box" style="text-align: center; cursor: pointer; border: 2px dashed #BBDEFB; background: #E3F2FD;">
+                <div style="font-size: 24px; margin-bottom: 8px;">📂</div>
+                <div style="font-weight: bold; color: #1976D2;">Click or Drop files here</div>
+                <div style="font-size: 11px; color: #666; margin-top: 4px;">Files will be saved to Downloads/FastShare</div>
+                <input type="file" id="fileInput" multiple style="display: none;">
+            </div>
+            
+            <div id="uploadStatus" style="font-size: 12px; margin-top: 10px; display: none;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span id="uploadFileName">Uploading...</span>
+                    <span id="uploadPercent">0%</span>
+                </div>
+                <div style="background: #E0E0E0; height: 6px; border-radius: 3px; overflow: hidden;">
+                    <div id="uploadBar" style="background: #2196F3; width: 0%; height: 100%; transition: width 0.2s;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <script>
+        // --- UPLOAD LOGIC ---
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const uploadStatus = document.getElementById('uploadStatus');
+        const uploadBar = document.getElementById('uploadBar');
+        const uploadPercent = document.getElementById('uploadPercent');
+        const uploadFileName = document.getElementById('uploadFileName');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#BBDEFB';
+        });
+        
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.style.background = '#E3F2FD';
+        });
+        
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.style.background = '#E3F2FD';
+            if (e.dataTransfer.files.length > 0) {
+                handleFiles(e.dataTransfer.files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFiles(fileInput.files);
+            }
+        });
+
+        function handleFiles(files) {
+            const formData = new FormData();
+            let totalSize = 0;
+            
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+                totalSize += files[i].size;
+            }
+
+            uploadStatus.style.display = 'block';
+            uploadFileName.textContent = `Uploading ${files.length} file(s)...`;
+            uploadBar.style.width = '0%';
+            uploadPercent.textContent = '0%';
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+            
+            xhr.upload.onprogress = (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    uploadBar.style.width = percent + '%';
+                    uploadPercent.textContent = percent + '%';
+                }
+            };
+            
+            xhr.onload = () => {
+                if (xhr.status === 200) {
+                    uploadFileName.textContent = 'Upload Complete!';
+                    uploadBar.style.background = '#4CAF50';
+                    setTimeout(() => {
+                        uploadStatus.style.display = 'none';
+                        fileInput.value = ''; // Reset
+                    }, 3000);
+                } else {
+                    uploadFileName.textContent = 'Upload Failed';
+                    uploadBar.style.background = '#F44336';
+                }
+            };
+            
+            xhr.onerror = () => {
+                uploadFileName.textContent = 'Connection Error';
+                uploadBar.style.background = '#F44336';
+            };
+            
+            xhr.send(formData);
+        }
+
         // --- CLIPBOARD SYNC LOGIC ---
         const clipboardEl = document.getElementById('clipboardContent');
         const statusDot = document.getElementById('statusDot');
