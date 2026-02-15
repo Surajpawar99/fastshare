@@ -10,6 +10,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 // Imports
 import 'package:fastshare/features/transfer/presentation/widgets/hotspot_manager.dart';
 import 'package:fastshare/core/services/discovery_service.dart';
+import 'package:clipboard_watcher/clipboard_watcher.dart';
+import 'package:fastshare/features/transfer/presentation/widgets/speed_chart.dart';
 import 'package:fastshare/features/transfer/data/services/local_http_server.dart';
 import 'package:fastshare/features/transfer/domain/entities/transfer_task.dart';
 import 'package:fastshare/features/transfer/presentation/controllers/transfer_controller.dart';
@@ -28,7 +30,7 @@ class ShareSessionScreen extends ConsumerStatefulWidget {
   ConsumerState<ShareSessionScreen> createState() => _ShareSessionScreenState();
 }
 
-class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
+class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> implements ClipboardListener {
   FileTransferServer? _server;
   final DiscoveryService _discoveryService = DiscoveryService();
   String? _serverIp;
@@ -38,6 +40,9 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   
   // Hotspot toggle
   bool _useHotspot = false;
+
+  // Clipboard Sync
+  bool _clipboardSync = false;
   
   // Test mode variables
   Timer? _testTimer;
@@ -61,10 +66,29 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeSession();
     });
+    // Register clipboard listener
+    clipboardWatcher.addListener(this);
+  }
+  
+  @override
+  void onClipboardChanged() async {
+    if (_clipboardSync && _server != null) {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      if (data?.text != null) {
+        _server!.broadcastClipboard(data!.text!);
+        // Optional: Show snackbar
+        if (mounted) {
+           ScaffoldMessenger.of(context).showSnackBar(
+             const SnackBar(content: Text("Text synced to connected devices"), duration: Duration(seconds: 1)),
+           );
+        }
+      }
+    }
   }
 
   @override
   void dispose() {
+    clipboardWatcher.removeListener(this);
     _server?.stopServer();
     _discoveryService.dispose();
     _testTimer?.cancel(); // Cancel test timer
@@ -322,6 +346,23 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
                 },
                 secondary: const Icon(Icons.wifi_tethering),
               ),
+              
+              SwitchListTile(
+                title: const Text("Clipboard Sync"),
+                subtitle: const Text("Auto-send copied text to connected PC"),
+                value: _clipboardSync,
+                onChanged: (val) {
+                  setState(() => _clipboardSync = val);
+                  if (val) {
+                    clipboardWatcher.start();
+                  } else {
+                    clipboardWatcher.stop();
+                  }
+                },
+                secondary: const Icon(Icons.paste_rounded),
+                activeColor: Colors.deepOrange,
+              ),
+              
               const Divider(),
               
               if (_useHotspot)
@@ -594,6 +635,20 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
             color: theme.colorScheme.primary,
           ),
         ),
+        const SizedBox(height: 24),
+        
+        // Speed Chart
+        Container(
+          height: 120,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
+          ),
+          child: SpeedChart(currentSpeed: task.speedMbps),
+        ),
+        
         const SizedBox(height: 24),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,

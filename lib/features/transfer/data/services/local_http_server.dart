@@ -84,8 +84,9 @@ class FileTransferServer {
     this.onError,
   });
 
-  // Single-serving guard: only one file may be served at a time.
-  bool _isServing = false;
+  // Multi-user Support
+  int _activeDownloads = 0;
+  static const int kMaxConcurrentDownloads = 5;
 
   /// Starts the HTTP Server with optional password protection.
   /// If [password] is provided, all requests require authentication via token or password.
@@ -126,9 +127,40 @@ class FileTransferServer {
 
   Future<void> stopServer() async {
     await _server?.close(force: true);
+    if (!_clipboardStream.isClosed) {
+      await _clipboardStream.close();
+    }
     _server = null;
     _filesToShare = [];
     _authManager = null;
+  }
+
+  // --- SSE CLIPBOARD HANDLER ---
+  void _handleClipboardEvents(HttpRequest request, HttpResponse response) {
+    // SSE Headers
+    response.headers.contentType = ContentType("text", "event-stream", charset: "utf-8");
+    response.headers.add("Cache-Control", "no-cache");
+    response.headers.add("Connection", "keep-alive");
+    response.headers.add("Access-Control-Allow-Origin", "*");
+
+    // Send initial connection message
+    response.write("data: connected\n\n");
+    response.flush();
+
+    // Pipe stream to response
+    final subscription = _clipboardStream.stream.listen((text) {
+      // JSON encode just in case of special chars
+      final json = '{"text": "${text.replaceAll('"', '\\"').replaceAll('\n', '\\n')}"}';
+      response.write("data: $json\n\n");
+      try {
+        response.flush();
+      } catch (_) {}
+    });
+
+    // Clean up on disconnect
+    request.response.done.then((_) {
+      subscription.cancel();
+    });
   }
 
   // --- AUTHENTICATION CHECK ---
@@ -196,6 +228,16 @@ class FileTransferServer {
     }
   }
 
+  // --- CLIPBOARD SYNC ---
+  final StreamController<String> _clipboardStream = StreamController.broadcast();
+
+  // Add clipboard text to stream
+  void broadcastClipboard(String text) {
+    if (!_clipboardStream.isClosed) {
+      _clipboardStream.add(text);
+    }
+  }
+
   // --- INTERNAL REQUEST HANDLING ---
 
   void _handleRequest(HttpRequest request) async {
@@ -222,7 +264,10 @@ class FileTransferServer {
         return;
       }
 
-      if (request.uri.path == '/' || request.uri.path.isEmpty) {
+      if (request.uri.path == '/clipboard/events') {
+        // SSE Endpoint for real-time clipboard updates
+        _handleClipboardEvents(request, response);
+      } else if (request.uri.path == '/' || request.uri.path.isEmpty) {
         // SERVE THE UI PAGE (or password form if not authenticated)
         if (!_isAuthenticated(request)) {
           _servePasswordForm(response);
@@ -288,7 +333,6 @@ class FileTransferServer {
       ''';
     }).join('');
 
-    // Full HTML Page
     final html = '''
 <!DOCTYPE html>
 <html lang="en">
@@ -303,7 +347,7 @@ class FileTransferServer {
     <meta name="apple-mobile-web-app-title" content="FastShare">
     
     <!-- Page Title (appears in browser tab) -->
-    <title>FastShare - File Download</title>
+    <title>FastShare - File Download & Clipboard</title>
     
     <!-- Favicon (appears in browser tab) -->
     <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect fill='%23009688' width='192' height='192'/><text x='96' y='120' font-size='120' font-weight='bold' fill='white' text-anchor='middle' font-family='Arial'>FS</text></svg>">
@@ -316,9 +360,11 @@ class FileTransferServer {
             padding: 20px;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             min-height: 100vh;
             color: #333;
+            gap: 20px;
+            flex-wrap: wrap;
         }
         .card {
             background: white;
@@ -327,58 +373,62 @@ class FileTransferServer {
             width: 100%;
             max-width: 400px;
             overflow: hidden;
+            margin-bottom: 20px;
         }
         .header {
             background-color: #009688; /* Teal Primary */
-            padding: 40px 20px;
+            padding: 30px 20px;
             text-align: center;
             color: white;
         }
         .logo {
-            font-size: 48px;
-            margin-bottom: 10px;
+            font-size: 40px;
+            margin-bottom: 8px;
         }
         .app-name {
-            font-size: 24px;
+            font-size: 22px;
             font-weight: bold;
             margin: 0;
         }
         .subtitle {
-            font-size: 14px;
+            font-size: 13px;
             opacity: 0.9;
-            margin-top: 5px;
+            margin-top: 4px;
         }
         .content {
-            padding: 24px;
+            padding: 20px;
         }
         .section-title {
             font-size: 14px;
             color: #666;
             font-weight: 600;
-            margin-bottom: 16px;
+            margin-bottom: 12px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
         }
         .file-list {
             display: flex;
             flex-direction: column;
-            gap: 12px;
+            gap: 10px;
         }
         .file-item {
             display: flex;
             align-items: center;
             background: #F9F9F9;
-            padding: 12px;
-            border-radius: 16px;
+            padding: 10px;
+            border-radius: 12px;
             border: 1px solid #EEE;
         }
         .file-icon {
-            font-size: 24px;
-            margin-right: 12px;
-            width: 40px;
-            height: 40px;
+            font-size: 20px;
+            margin-right: 10px;
+            width: 36px;
+            height: 36px;
             background: #E0F2F1;
-            border-radius: 10px;
+            border-radius: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -392,34 +442,66 @@ class FileTransferServer {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
-            font-size: 14px;
+            font-size: 13px;
         }
         .file-size {
-            font-size: 12px;
+            font-size: 11px;
             color: #888;
         }
         .download-btn {
             background-color: #009688;
             color: white;
             text-decoration: none;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 12px;
+            padding: 6px 14px;
+            border-radius: 18px;
+            font-size: 11px;
             font-weight: bold;
             transition: opacity 0.2s;
         }
         .download-btn:active {
             opacity: 0.8;
         }
+        
+        /* Clipboard Styles */
+        .clipboard-box {
+            background: #FFF3E0;
+            border: 1px solid #FFE0B2;
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+        .clipboard-text {
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            color: #333;
+            font-size: 13px;
+            min-height: 40px;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #ccc;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-connected { background-color: #4CAF50; }
+        .status-disconnected { background-color: #F44336; }
+        
         .footer {
             text-align: center;
-            padding: 20px;
-            font-size: 12px;
+            padding: 15px;
+            font-size: 11px;
             color: #AAA;
         }
     </style>
 </head>
 <body>
+    <!-- File Transfer Card -->
     <div class="card">
         <div class="header">
             <div class="logo">📡</div>
@@ -427,18 +509,86 @@ class FileTransferServer {
             <div class="subtitle">Secure Local File Transfer</div>
         </div>
         <div class="content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                <div class="section-title" style="margin-bottom: 0;">Files ready</div>
-                ${_filesToShare.length > 1 ? '<a href="/download-all" class="download-btn" style="background-color: #00796B;">📦 Download All (.zip)</a>' : ''}
+            <div class="section-title">
+                <span>Files ready</span>
+                ${_filesToShare.length > 1 ? '<a href="/download-all" class="download-btn" style="background-color: #00796B;">📦 Zip All</a>' : ''}
             </div>
             <div class="file-list">
                 $fileListHtml
             </div>
         </div>
-        <div class="footer">
-            No internet required • End-to-End Encrypted
+    </div>
+
+    <!-- Clipboard Sync Card -->
+    <div class="card">
+        <div class="header" style="background: #FF9800; padding: 20px;">
+            <div class="logo" style="font-size: 32px;">📋</div>
+            <h1 class="app-name">Clipboard Sync</h1>
+        </div>
+        <div class="content">
+            <div class="section-title">
+                <span><span id="statusDot" class="status-dot"></span> Live Text</span>
+                <button onclick="copyToClipboard()" class="download-btn" style="background: #FF9800; border: none; cursor: pointer;">Copy</button>
+            </div>
+            <div class="clipboard-box">
+                <div id="clipboardContent" class="clipboard-text">Waiting for text...</div>
+            </div>
+            <div style="font-size: 11px; color: #888; text-align: center;">
+                Text copied on mobile will appear here instantly.
+            </div>
         </div>
     </div>
+
+    <script>
+        // --- CLIPBOARD SYNC LOGIC ---
+        const clipboardEl = document.getElementById('clipboardContent');
+        const statusDot = document.getElementById('statusDot');
+        let eventSource = null;
+
+        function connectSSE() {
+            eventSource = new EventSource('/clipboard/events');
+            
+            eventSource.onopen = () => {
+                statusDot.className = 'status-dot status-connected';
+                clipboardEl.textContent = 'Connected! Waiting for text...';
+            };
+            
+            eventSource.onmessage = (event) => {
+                try {
+                    if(event.data === 'connected') return;
+                    
+                    const data = JSON.parse(event.data);
+                    if (data.text) {
+                        clipboardEl.textContent = data.text;
+                        // Auto-copy if possible (requires user interaction first usually)
+                        navigator.clipboard.writeText(data.text).catch(err => console.log('Auto-copy failed', err));
+                    }
+                } catch (e) {
+                    console.error('Parse error', e);
+                }
+            };
+            
+            eventSource.onerror = () => {
+                statusDot.className = 'status-dot status-disconnected';
+                eventSource.close();
+                // Retry connection after 3s
+                setTimeout(connectSSE, 3000);
+            };
+        }
+
+        function copyToClipboard() {
+            const text = clipboardEl.textContent;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('button[onclick="copyToClipboard()"]');
+                const originalText = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = originalText, 1500);
+            });
+        }
+
+        // Start connection
+        connectSSE();
+    </script>
 </body>
 </html>
     ''';
@@ -732,14 +882,14 @@ class FileTransferServer {
       return;
     }
 
-    if (_isServing) {
+    if (_activeDownloads >= kMaxConcurrentDownloads) {
       response.statusCode = HttpStatus.tooManyRequests;
-      response.write('Another transfer is in progress.');
+      response.write('Too many active downloads. Please try again later.');
       await response.close();
       return;
     }
 
-    _isServing = true;
+    _activeDownloads++;
     try {
       final archive = Archive();
       
@@ -769,7 +919,7 @@ class FileTransferServer {
       print("Zip Error: $e");
       response.statusCode = HttpStatus.internalServerError;
     } finally {
-      _isServing = false;
+      _activeDownloads--;
       await response.close();
     }
   }
@@ -808,17 +958,17 @@ class FileTransferServer {
       'attachment; filename="$filename"',
     );
 
-    // Enforce single active download: reject concurrent requests
-    if (_isServing) {
+    // Enforce max concurrent downloads
+    if (_activeDownloads >= kMaxConcurrentDownloads) {
       response.statusCode = HttpStatus.tooManyRequests;
-      response.write('Another download is in progress. Try again later.');
+      response.write('Too many active downloads. Please try again later.');
       await response.close();
       return;
     }
 
     // If file is seekable (File-backed), support Range requests and Accept-Ranges
     if (sf.file != null) {
-      _isServing = true;
+      _activeDownloads++;
       response.headers.add(HttpHeaders.acceptRangesHeader, 'bytes');
 
       // Handle Range header for resume support
@@ -918,11 +1068,11 @@ class FileTransferServer {
       } catch (e) {
         // Stream error - client disconnected or IO error
       } finally {
-        _isServing = false;
+        _activeDownloads--;
         await response.close();
       }
     } else if (sf.stream != null) {
-      _isServing = true;
+      _activeDownloads++;
       // Non-seekable stream (e.g., content URI). We cannot support Range requests here.
       response.headers.contentLength = fileSize;
 
@@ -978,7 +1128,7 @@ class FileTransferServer {
       } catch (e) {
         // Stream error
       } finally {
-        _isServing = false;
+        _activeDownloads--;
         await response.close();
       }
     } else {

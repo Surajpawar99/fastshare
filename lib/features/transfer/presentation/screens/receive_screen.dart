@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:fastshare/core/services/discovery_service.dart';
 import 'package:bonsoir/bonsoir.dart';
+import 'package:fastshare/features/transfer/presentation/widgets/speed_chart.dart';
 
 /// ReceiveScreen: ConsumerStatefulWidget for file receiving with proper Riverpod binding
 ///
@@ -352,13 +353,18 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
             color: theme.colorScheme.primary,
           ),
         ),
-        const SizedBox(height: 8),
-        Align(
-          alignment: Alignment.centerRight,
-          child: Text(
-            "${(task.progress * 100).toStringAsFixed(1)}%",
-            style: theme.textTheme.bodySmall,
+        const SizedBox(height: 24),
+
+        // Speed Chart
+        Container(
+          height: 120,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: theme.colorScheme.outlineVariant.withOpacity(0.5)),
           ),
+          child: SpeedChart(currentSpeed: task.speedMbps),
         ),
 
         const SizedBox(height: 32),
