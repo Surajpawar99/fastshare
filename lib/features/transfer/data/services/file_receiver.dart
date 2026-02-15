@@ -24,152 +24,170 @@ class FileTransferClient {
   // State Tracking
   int _receivedBytes = 0;
   int _lastSpeedCheckBytes = 0;
-  bool _inAppReceiving = false;
+  bool _isReceiving = false;
+  bool _isPaused = false;
+  
+  // Current task info for resume
+  String? _currentServerIp;
+  int? _currentServerPort;
+  DownloadTask? _currentTask;
 
   // Callbacks
-  final Function(int bytesReceived, double progress)? onProgress;
-  final Function(double speedInMBps)? onSpeedUpdate;
-  final Function(String savedPath)? onComplete;
-  final Function(String error)? onError;
-
-  // NEW: Combined progress callback with speed
-  Function(int bytesReceived, double speedMbps)? onProgressWithSpeed;
+  Function(int bytesReceived, double speedMbps)? onProgress;
+  Function(String savedPath)? onComplete;
+  Function(String error)? onError;
 
   FileTransferClient({
     this.onProgress,
-    this.onSpeedUpdate,
     this.onComplete,
     this.onError,
-    this.onProgressWithSpeed,
   });
 
-  /// Connects to the sender and downloads a specific file
+  /// Starts a new download or resumes if file exists
   Future<void> downloadFile(
     String serverIp,
     int serverPort,
     DownloadTask task,
   ) async {
-    if (_inAppReceiving) {
+    if (_isReceiving) {
       onError?.call("A download is already in progress.");
       return;
     }
-    _inAppReceiving = true;
-    _receivedBytes = 0;
+    
+    _currentServerIp = serverIp;
+    _currentServerPort = serverPort;
+    _currentTask = task;
+    _isReceiving = true;
+    _isPaused = false;
     _lastSpeedCheckBytes = 0;
 
-    _httpClient = HttpClient()
-      ..badCertificateCallback =
-          ((X509Certificate cert, String host, int port) => true)
-      ..connectionTimeout = const Duration(seconds: 10);
-    // Note: HttpClient maintains keepAlive automatically for streaming
-
     try {
-      // 1. Prepare Local File
       final file = File('${task.savePath}/${task.filename}');
+      
+      // Check for existing partial file to resume
+      int startByte = 0;
       if (await file.exists()) {
-        await file.delete();
+        startByte = await file.length();
+        if (startByte >= task.fileSize) {
+           // Already done?
+           _isReceiving = false;
+           onComplete?.call(file.path);
+           return;
+        }
+      } else {
+        await file.parent.create(recursive: true);
       }
-      await file.parent.create(recursive: true);
+      
+      _receivedBytes = startByte;
+      
+      // Open file in APPEND mode if resuming, WRITE if new
+      _fileSink = file.openWrite(mode: startByte > 0 ? FileMode.append : FileMode.write);
 
-      _fileSink = file.openWrite();
+      _httpClient = HttpClient()
+        ..connectionTimeout = const Duration(seconds: 10);
 
-      // 2. Request File from Server with explicit streaming
       final url = Uri.parse('http://$serverIp:$serverPort/files?id=${task.id}');
       final request = await _httpClient!.getUrl(url);
+      
+      // Add Range Header for Resume
+      if (startByte > 0) {
+        request.headers.add("Range", "bytes=$startByte-");
+      }
+      
       final response = await request.close();
 
-      if (response.statusCode != HttpStatus.ok) {
-        throw Exception('Server returned status: ${response.statusCode}');
+      if (response.statusCode == HttpStatus.ok || response.statusCode == HttpStatus.partialContent) {
+         _startSpeedTimer();
+         
+         _downloadSubscription = response.listen(
+          (List<int> chunk) {
+            if (_isPaused) return; // Drop packets if paused (shouldn't happen if connection closed)
+            
+            _fileSink?.add(chunk);
+            _receivedBytes += chunk.length;
+            
+            // Speed timer handles progress updates
+          },
+          onError: (e) {
+            if (!_isPaused) onError?.call("Download Error: $e");
+          },
+          onDone: () async {
+            await _fileSink?.flush();
+            await _fileSink?.close();
+            _speedTimer?.cancel();
+            
+            if (!_isPaused && _isReceiving) {
+               _isReceiving = false;
+               onComplete?.call(file.path);
+            }
+          },
+          cancelOnError: true,
+        );
+      } else {
+        throw Exception("Server error: ${response.statusCode}");
       }
 
-      // 3. Start Speed Calculation Timer
-      final startTime = DateTime.now();
-      _startSpeedTimer(startTime);
-
-      // 4. Process the Incoming Stream (streaming, no buffering)
-      _downloadSubscription = response.listen(
-        (List<int> chunk) {
-          // Streaming directly to file, no memory buffering
-          _fileSink!.add(chunk);
-          _receivedBytes += chunk.length;
-          final double progress = _receivedBytes / task.fileSize;
-
-          if (onProgress != null) {
-            onProgress!(_receivedBytes, progress);
-          }
-        },
-        onError: (e) {
-          // Error callback - guard will be reset in finally
-          onError?.call("Download Error: $e");
-        },
-        onDone: () async {
-          // Success path: completion fires ONCE
-          await _fileSink!.flush();
-          await _fileSink!.close();
-
-          final savedSize = await file.length();
-          if (savedSize == task.fileSize) {
-            // File integrity verified - fire completion callback once
-            if (!_inAppReceiving) return; // Already cleaned up
-            onComplete?.call(file.path);
-          } else {
-            onError?.call(
-              "File corrupted: Size mismatch ($savedSize != ${task.fileSize})",
-            );
-          }
-        },
-        cancelOnError: true,
-      );
     } catch (e) {
-      // Connection error - ensure guard is reset and show user-friendly error
-      onError?.call("Connection failed: $e");
-    } finally {
       _cleanup();
+      onError?.call("Connection failed: $e");
     }
   }
 
-  /// Cancels the current download
-  Future<void> cancelDownload() async {
-    if (!_inAppReceiving) return;
-    await _cleanup();
-    onError?.call("Download cancelled by user");
+  Future<void> pauseDownload() async {
+    if (!_isReceiving) return;
+    _isPaused = true;
+    _isReceiving = false;
+    
+    // Close connection but keep task info for resume
+    await _downloadSubscription?.cancel();
+    await _fileSink?.close();
+    _httpClient?.close(force: true);
+    _speedTimer?.cancel();
+    
+    // Notify UI
+    if (onProgress != null) onProgress!(_receivedBytes, 0.0);
   }
 
-  // --- INTERNAL HELPERS ---
+  Future<void> resumeDownload() async {
+    if (_isReceiving || _currentTask == null) return;
+    
+    // Restart download with same task (logic handles Range header)
+    await downloadFile(_currentServerIp!, _currentServerPort!, _currentTask!);
+  }
 
-  void _startSpeedTimer(DateTime startTime) {
-    // Check speed every 500ms
+  Future<void> cancelDownload() async {
+    _isReceiving = false;
+    _isPaused = false;
+    _cleanup();
+    _currentTask = null;
+  }
+
+  void _startSpeedTimer() {
+    _speedTimer?.cancel();
     _speedTimer = Timer.periodic(const Duration(milliseconds: 500), (timer) {
-      if (!_inAppReceiving) {
+      if (!_isReceiving) {
         timer.cancel();
         return;
       }
 
       final bytesDiff = _receivedBytes - _lastSpeedCheckBytes;
       _lastSpeedCheckBytes = _receivedBytes;
-
-      // Calculate Speed: bytes per 0.5s -> multiply by 2 for bytes/sec
-      final bytesPerSecond = bytesDiff * 2;
-      final mbps = bytesPerSecond / (1024 * 1024);
-
-      if (onSpeedUpdate != null) {
-        onSpeedUpdate!(mbps);
-      }
-
-      // NEW: Combined callback with bytes and speed
-      if (onProgressWithSpeed != null) {
-        onProgressWithSpeed!(_receivedBytes, mbps);
+      
+      // Bytes per 0.5s * 2 = Bytes/sec
+      final double mbps = (bytesDiff * 2) / (1024 * 1024);
+      
+      if (onProgress != null) {
+        onProgress!(_receivedBytes, mbps);
       }
     });
   }
 
   Future<void> _cleanup() async {
-    if (!_inAppReceiving) return;
-    _inAppReceiving = false;
     _speedTimer?.cancel();
     await _downloadSubscription?.cancel();
     await _fileSink?.close();
     _httpClient?.close(force: true);
     _httpClient = null;
+    _fileSink = null;
   }
 }

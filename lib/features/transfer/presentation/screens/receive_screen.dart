@@ -61,7 +61,7 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
   }
 
   /// Single entry point for all incoming links (QR scan or paste)
-  /// Validates, normalizes, parses server details, and opens in external browser
+  /// Validates, normalizes, parses server details, and asks user for download method
   void handleIncomingLink(String link) {
     final trimmed = link.trim();
 
@@ -70,7 +70,6 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
       return;
     }
 
-    // Normalize to ROOT link only
     Uri uri;
     try {
       uri = Uri.parse(trimmed);
@@ -79,11 +78,40 @@ class _ReceiveScreenState extends ConsumerState<ReceiveScreen> {
       return;
     }
 
-    // Build ROOT link: http://IP:PORT/
     final rootLink = '${uri.scheme}://${uri.host}:${uri.port}/';
 
-    // Always open in external browser
-    _startExternalBrowser(rootLink);
+    // Show Dialog to choose method
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Text("Download Method"),
+        content: const Text("Choose how you want to download files."),
+        actions: [
+          TextButton.icon(
+            icon: const Icon(Icons.open_in_browser),
+            label: const Text("Browser"),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _startExternalBrowser(rootLink);
+            },
+          ),
+          FilledButton.icon(
+             icon: const Icon(Icons.download_rounded),
+             label: const Text("In-App (Resume Supported)"),
+             onPressed: () {
+               Navigator.pop(ctx);
+               _startInAppDownload(uri.host, uri.port);
+             },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _startInAppDownload(String ip, int port) {
+     // Trigger controller to start download
+     ref.read(transferControllerProvider.notifier).startReceiving(ip, port);
   }
 
   // --- UI BUILDER ---

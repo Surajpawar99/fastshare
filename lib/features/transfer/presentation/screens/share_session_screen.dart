@@ -8,6 +8,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 // Imports
+import 'package:fastshare/features/transfer/presentation/widgets/hotspot_manager.dart';
 import 'package:fastshare/core/services/discovery_service.dart';
 import 'package:fastshare/features/transfer/data/services/local_http_server.dart';
 import 'package:fastshare/features/transfer/domain/entities/transfer_task.dart';
@@ -34,7 +35,10 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
   int? _serverPort;
   String? _sharePassword; // Optional password for protection
   final TextEditingController _passwordController = TextEditingController();
-
+  
+  // Hotspot toggle
+  bool _useHotspot = false;
+  
   // Test mode variables
   Timer? _testTimer;
   int _testBytesTransferred = 0;
@@ -294,6 +298,43 @@ class _ShareSessionScreenState extends ConsumerState<ShareSessionScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
+            // --- MODE SWITCHER (WiFi / Hotspot) ---
+            if (isWaiting && !isError) ...[
+              SwitchListTile(
+                title: const Text("Use Hotspot (No Router)"),
+                subtitle: const Text("Create a direct connection without internet"),
+                value: _useHotspot,
+                onChanged: (val) {
+                  setState(() => _useHotspot = val);
+                  if (val) {
+                    // Stop current server if any
+                    _server?.stopServer();
+                    setState(() {
+                      _server = null;
+                      _serverIp = null;
+                      _serverPort = null;
+                    });
+                    // Hotspot Manager will handle connection via callback
+                  } else {
+                    // Re-initialize regular WiFi
+                    _initializeSession();
+                  }
+                },
+                secondary: const Icon(Icons.wifi_tethering),
+              ),
+              const Divider(),
+              
+              if (_useHotspot)
+                HotspotManager(
+                  onConnected: (ip) {
+                    if (_serverIp != ip) {
+                       // New IP found from hotspot, restart server on this IP
+                       _initializeSession();
+                    }
+                  },
+                ),
+            ],
+
             // --- QR CODE ---
             _buildQRSection(theme, isWaiting, task),
 
