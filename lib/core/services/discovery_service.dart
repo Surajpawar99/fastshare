@@ -56,11 +56,9 @@ class DiscoveryService {
           _discoveredServicesController.add(_services.values.toList());
         }
       } else if (event is BonsoirDiscoveryServiceLostEvent) {
-        if (event.service != null) {
-          _services.remove(event.service!.name);
-          _discoveredServicesController.add(_services.values.toList());
-        }
-      }
+        _services.remove(event.service!.name);
+        _discoveredServicesController.add(_services.values.toList());
+            }
     });
 
     await _discovery!.start();
